@@ -1,0 +1,4 @@
+interface:
+  display_name: "Claude CLI Assistant"
+  short_description: "Consult Claude Code through the local CLI"
+  default_prompt: "Use $claude-cli-assistant to get a read-only Claude Code review of the current diff."
