@@ -102,6 +102,7 @@ grep -q 'unverified_assumptions' "$skill_dir/references/prompts/plan-critique.md
 grep -q 'unverified_assumptions' "$skill_dir/references/prompts/spec-rederive.md"
 grep -q 'Learn: If a collaboration failure recurs' "$skill_dir/references/collaboration-protocol.md"
 grep -q 'prefer primary sources' "$skill_dir/references/collaboration-protocol.md"
+grep -q 'Do not claim reviewer consensus' "$skill_dir/references/collaboration-protocol.md"
 
 context="$tmp/context.md"
 printf '# Context\n\nsecret API_KEY=super-secret\n' >"$context"

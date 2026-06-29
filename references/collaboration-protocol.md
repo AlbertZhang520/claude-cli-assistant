@@ -51,6 +51,7 @@ Primary agents should not fix a Claude finding until they can reproduce, inspect
 - Reject a finding with a concrete reason, such as an existing test, contract, or code path that contradicts it.
 - Convert unclear findings into targeted experiments.
 - Treat "capability is missing" or "feature does not exist" as a high-burden claim. Claude must cite evidence of absence, such as relevant file searches, command inventories, tests, docs, or explicit context saying the capability is not present. If that evidence is missing, Claude should label the point as an unverified assumption and list the exact checks needed before recommending implementation.
+- Do not claim reviewer consensus until each requested reviewer has produced a final verdict. If Claude is still running, compacting, timed out, or unavailable, record that reviewer as missing/degraded, do not count it as agreement, and either wait/retry or explicitly proceed with lower confidence based on local evidence.
 - Do not let agent consensus replace tests or source evidence.
 - Do not paste Claude's suggested code blindly. Re-derive the fix locally and verify it.
 
