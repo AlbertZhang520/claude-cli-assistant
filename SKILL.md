@@ -35,6 +35,12 @@ Review the current diff with a bounded context packet:
 ./scripts/run-claude-cli.sh consult review --context /tmp/claude-context.md
 ```
 
+When asking Claude to choose a next slice or judge whether a capability is missing, include a lightweight inventory:
+
+```bash
+./scripts/pack-context.sh --inventory --file README.md --output /tmp/claude-context.md
+```
+
 Start a long-running consultation without blocking the caller:
 
 ```bash
@@ -107,6 +113,7 @@ Opt into a tool-enabled consultation only when needed:
 - A local `.env` is only read for `CLAUDE_CLI_*` wrapper variables; do not use it for provider credentials.
 - When enabling mutating tools such as `Bash`, `Edit`, or `Write`, prefer `--permission-mode default` unless silent mutation is intentional.
 - Keep input and output bounded for deep reviews. The wrapper defaults to `--output-words 900`, warns on large prompts, and retries once with a compacted input prompt plus concise recovery mode if Claude returns a budget error.
+- For capability-gap analysis, provide `pack-context.sh --inventory` and require absence claims to cite evidence. If inventory is missing or reports `TRUNCATED`, treat "missing capability" conclusions as unverified assumptions until targeted local searches confirm them.
 - Do not assume `--model sonnet` or another alias reduced cost. Check `modelUsage`; synchronous wrapper calls warn when the requested model string is absent from `modelUsage`.
 - Treat `wait --timeout` as caller patience, not task failure. Use async status/result commands to inspect the real terminal state.
 - If a prompt may have caused edits because tools were enabled, inspect relevant diffs immediately.

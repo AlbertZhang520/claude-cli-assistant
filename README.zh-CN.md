@@ -78,6 +78,12 @@ Use $claude-cli-assistant to consult local Claude CLI on this implementation pla
 ./scripts/run-claude-cli.sh consult review --context /tmp/claude-context.md --async --wait-timeout 30
 ```
 
+当需要让 Claude 选择下一步实现切片，或判断某个能力是否缺失时，加入轻量能力清单：
+
+```bash
+./scripts/pack-context.sh --inventory --file README.md --output /tmp/claude-context.md
+```
+
 可用 presets：
 
 - `review`：对代码或 diff 做对抗式审查。
@@ -122,6 +128,7 @@ run_id=$(printf '%s' "Review this large refactor. Do not modify files." \
 
 - 大上下文包可能在 Claude 产出有效内容前，就因为输入 token 消耗完配置预算。
 - wrapper 会对大 prompt 发出预警，并在预算上限错误后用压缩输入和精简输出自动重试一次。
+- 能力缺失类结论需要更高举证门槛。做 capability-gap 分析时使用 `pack-context.sh --inventory`，并在本地搜索确认前，把 missing-feature 结论视为未验证假设。如果 inventory 输出包含 `TRUNCATED`，必须先做定向本地搜索，再接受缺失结论。
 - 不要假设 `--model sonnet` 或其他 alias 已经降低成本。请检查 JSON `modelUsage`；同步 wrapper 调用会在请求模型字符串不出现在 `modelUsage` 时发出警告。
 
 ## 安全

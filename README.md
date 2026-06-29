@@ -78,6 +78,12 @@ Use structured presets when Claude should collaborate with another code agent in
 ./scripts/run-claude-cli.sh consult review --context /tmp/claude-context.md --async --wait-timeout 30
 ```
 
+When asking Claude to choose the next implementation slice or judge whether a capability is missing, include a lightweight capability inventory:
+
+```bash
+./scripts/pack-context.sh --inventory --file README.md --output /tmp/claude-context.md
+```
+
 Available presets:
 
 - `review`: adversarial code or diff review.
@@ -122,6 +128,7 @@ Timeouts are separate:
 
 - Large context packets can exhaust the configured budget on input tokens before Claude writes useful output.
 - The wrapper warns when a prompt is large and retries budget-limit errors once with compacted input plus concise output.
+- Absence claims have a higher burden of proof. Use `pack-context.sh --inventory` for capability-gap analysis, and treat missing-feature conclusions as unverified until local searches confirm them. If inventory output reports `TRUNCATED`, run targeted local searches before accepting absence claims.
 - Do not assume `--model sonnet` or another alias reduced cost. Inspect JSON `modelUsage`; synchronous wrapper calls warn when the requested string is absent from `modelUsage`.
 
 ## Security

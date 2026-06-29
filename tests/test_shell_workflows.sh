@@ -95,6 +95,13 @@ grep -q 'ANTHROPIC_AUTH_TOKEN=$' "$tmp/print-config-unset.out"
 grep -q 'ANTHROPIC_API_KEY=$' "$tmp/print-config-unset.out"
 
 "$skill_dir/scripts/run-claude-cli.sh" consult --list-templates | grep -q '^review$'
+grep -q 'Burden of proof for absence claims' "$skill_dir/references/prompts/review.md"
+grep -q 'Burden of proof for absence claims' "$skill_dir/references/prompts/plan-critique.md"
+grep -q 'Burden of proof for absence claims' "$skill_dir/references/prompts/spec-rederive.md"
+grep -q 'unverified_assumptions' "$skill_dir/references/prompts/plan-critique.md"
+grep -q 'unverified_assumptions' "$skill_dir/references/prompts/spec-rederive.md"
+grep -q 'Learn: If a collaboration failure recurs' "$skill_dir/references/collaboration-protocol.md"
+grep -q 'prefer primary sources' "$skill_dir/references/collaboration-protocol.md"
 
 context="$tmp/context.md"
 printf '# Context\n\nsecret API_KEY=super-secret\n' >"$context"
@@ -196,5 +203,70 @@ big="$tmp/big.txt"
 perl -e 'print "x" x 5000' >"$big"
 "$skill_dir/scripts/pack-context.sh" --file "$big" --max-bytes 400 --output "$tmp/truncated.md"
 grep -Fq '[TRUNCATED: context packet exceeded 400 bytes after redaction]' "$tmp/truncated.md"
+
+inventory_project="$tmp/inventory-project"
+mkdir -p "$inventory_project/schemas" "$inventory_project/src" "$inventory_project/skills/example/references"
+git init -q "$inventory_project"
+printf '.venv/\nvendor/\n' >"$inventory_project/.gitignore"
+printf '# Demo\n\n## Commands\n\n- demo run\n' >"$inventory_project/README.md"
+printf '{}\n' >"$inventory_project/schemas/demo-command.schema.json"
+printf 'program.command("demo")\n' >"$inventory_project/src/cli.ts"
+printf 'program.command("admin") // API_KEY=inventory-secret-value-1234567890\n' >"$inventory_project/src/admin-cli.ts"
+printf 'program.command("env") // API_KEY=env-secret-value-1234567890\n' >"$inventory_project/.env"
+mkdir -p "$inventory_project/.venv"
+printf 'program.command("ignored") // API_KEY=ignored-secret-value-1234567890\n' >"$inventory_project/.venv/ignored-cli.ts"
+printf '## demo command\n' >"$inventory_project/skills/example/references/commands.md"
+(
+  cd "$inventory_project"
+  "$skill_dir/scripts/pack-context.sh" --inventory --output "$tmp/inventory-small.md"
+)
+grep -Fq 'Capability Inventory' "$tmp/inventory-small.md"
+grep -Fq 'schemas/demo-command.schema.json' "$tmp/inventory-small.md"
+grep -Fq 'program.command("demo")' "$tmp/inventory-small.md"
+grep -Fq 'API_KEY=<redacted>' "$tmp/inventory-small.md"
+if grep -Fq 'inventory-secret-value' "$tmp/inventory-small.md"; then
+  echo "inventory command-like lines were not redacted" >&2
+  exit 1
+fi
+if grep -Eq 'ignored-secret-value|program\.command\("ignored"\)' "$tmp/inventory-small.md"; then
+  echo "gitignored inventory files should not be scanned" >&2
+  exit 1
+fi
+if grep -Eq 'env-secret-value|program\.command\("env"\)' "$tmp/inventory-small.md"; then
+  echo "private env files should not be scanned" >&2
+  exit 1
+fi
+(
+  cd "$inventory_project"
+  PATH="/usr/bin:/bin" "$skill_dir/scripts/pack-context.sh" --inventory --output "$tmp/inventory-grep.md"
+)
+grep -Fq 'program.command("admin") // API_KEY=<redacted>' "$tmp/inventory-grep.md"
+if grep -Eq 'ignored-secret-value|program\.command\("ignored"\)' "$tmp/inventory-grep.md"; then
+  echo "gitignored inventory files should not be scanned by grep fallback" >&2
+  exit 1
+fi
+if grep -Eq 'env-secret-value|program\.command\("env"\)' "$tmp/inventory-grep.md"; then
+  echo "private env files should not be scanned by grep fallback" >&2
+  exit 1
+fi
+
+for i in $(seq 1 305); do
+  n="$(printf '%03d' "$i")"
+  printf '{}\n' >"$inventory_project/schemas/generated-${n}-command.schema.json"
+done
+for i in $(seq 1 205); do
+  n="$(printf '%03d' "$i")"
+  printf 'program.command("bulk-%s")\n' "$n"
+done >"$inventory_project/src/many-cli.ts"
+(
+  cd "$inventory_project"
+  "$skill_dir/scripts/pack-context.sh" --inventory --output "$tmp/inventory.md"
+)
+grep -Fq 'TRUNCATED: capability inventory candidate files exceeded 300 entries' "$tmp/inventory.md"
+grep -Fq 'TRUNCATED: capability inventory command-like lines exceeded 200 entries' "$tmp/inventory.md"
+if grep -Eq 'ignored-secret-value|program\.command\("ignored"\)' "$tmp/inventory.md"; then
+  echo "gitignored inventory files should not be scanned" >&2
+  exit 1
+fi
 
 echo "shell workflows ok"

@@ -14,6 +14,7 @@ Options:
   --status              Include git status. Enabled by default when no section is selected.
   --diff [range]        Include git diff. Enabled by default when no section is selected.
   --staged              Use staged diff instead of working-tree diff.
+  --inventory           Include a lightweight capability inventory for absence checks.
   --file <path>         Include a file excerpt. May be repeated.
   --log <path>          Include command/log output from a file. May be repeated.
   --max-lines <n>       Max lines per --file/--log excerpt. Default: 220.
@@ -26,6 +27,7 @@ EOF
 
 include_status=0
 include_diff=0
+include_inventory=0
 staged=0
 diff_range=""
 max_lines=220
@@ -57,6 +59,11 @@ while [[ $# -gt 0 ]]; do
       ;;
     --staged)
       staged=1
+      selected=1
+      shift
+      ;;
+    --inventory)
+      include_inventory=1
       selected=1
       shift
       ;;
@@ -150,6 +157,30 @@ append_file() {
   } >>"$tmp"
 }
 
+print_limited_inventory() {
+  local limit="$1"
+  local label="$2"
+  awk -v limit="$limit" -v label="$label" '
+    NR <= limit { print }
+    END {
+      if (NR > limit) {
+        printf "[TRUNCATED: capability inventory %s exceeded %d entries; run targeted local search before making absence claims]\n", label, limit
+      }
+    }
+  '
+}
+
+is_inventory_private_file() {
+  case "$1" in
+    .env|.env.*|*/.env|*/.env.*|*.pem|*.key|*.p8|*.p12|*.crt|*.cer|.npmrc|*/.npmrc|.pypirc|*/.pypirc)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 append_untracked_files() {
   [[ "$is_git_repo" -eq 1 ]] || return 0
   local found=0
@@ -171,6 +202,138 @@ append_untracked_files() {
       append_file "Untracked File: ${file}" "${repo_root}/${file}"
     done < <(git -C "$repo_root" ls-files --others --exclude-standard)
   fi
+}
+
+append_capability_inventory() {
+  local command_pattern='program\.command|\.command\(|Command\(|commands?:|subcommands?:|^#{1,4}[[:space:]].*(Command|Commands|Usage|Use|使用|命令)'
+  section "Capability Inventory"
+  {
+    echo '```text'
+    echo '# Candidate capability files'
+    (
+      cd "$repo_root"
+      if [[ "$is_git_repo" -eq 1 ]]; then
+        git -C "$repo_root" ls-files -co --exclude-standard \
+          | awk '
+              /(^|\/)(schemas|schema)\// ||
+              /(^|\/)skills\/[^\/]+\/references\/commands/ ||
+              /(^|\/)references\/commands/ ||
+              /(^|\/)commands\.md$/ ||
+              /(^|\/)(README\.md|AGENT\.md|AGENTS\.md|CLAUDE\.md|package\.json|pyproject\.toml)$/ ||
+              /(^|\/)[^\/]*(cli|actions|runtime|driver|test)[^\/]*$/ { print }
+            '
+      else
+        find . -maxdepth 6 -type f \
+          \( \
+            -path './schemas/*' -o \
+            -path './schema/*' -o \
+            -path './skills/*/references/commands*' -o \
+            -path './references/commands*' -o \
+            -name 'commands.md' -o \
+            -name 'README.md' -o \
+            -name 'AGENT.md' -o \
+            -name 'AGENTS.md' -o \
+            -name 'CLAUDE.md' -o \
+            -name 'package.json' -o \
+            -name 'pyproject.toml' -o \
+            -name '*cli*' -o \
+            -name '*actions*' -o \
+            -name '*runtime*' -o \
+            -name '*driver*' -o \
+            -name '*test*' \
+          \) \
+          -not -path './.git/*' \
+          -not -path './node_modules/*' \
+          -not -path './dist/*' \
+          -not -path './build/*' \
+          -not -path './.claude-cli/*' \
+          -not -path './__pycache__/*' \
+          -not -path './.venv/*' \
+          -not -path './venv/*' \
+          -not -path './vendor/*' \
+          -not -path './target/*' \
+          -not -path './.next/*' \
+          -not -path './coverage/*' \
+          -not -path './out/*' \
+          -not -name '.env' \
+          -not -name '.env.*' \
+          -not -name '*.pem' \
+          -not -name '*.key' \
+          -not -name '*.p8' \
+          -not -name '*.p12' \
+          | sed 's#^\./##'
+      fi \
+        | LC_ALL=C sort \
+        | print_limited_inventory 300 "candidate files"
+    ) 2>/dev/null || true
+
+    echo
+    echo '# Command-like lines'
+    (
+      cd "$repo_root"
+      if command -v rg >/dev/null 2>&1; then
+        rg -n --no-heading \
+          --glob '!.git/**' \
+          --glob '!node_modules/**' \
+          --glob '!dist/**' \
+          --glob '!build/**' \
+          --glob '!.claude-cli/**' \
+          --glob '!__pycache__/**' \
+          --glob '!.venv/**' \
+          --glob '!venv/**' \
+          --glob '!vendor/**' \
+          --glob '!target/**' \
+          --glob '!.next/**' \
+          --glob '!coverage/**' \
+          --glob '!out/**' \
+          --glob '!.env' \
+          --glob '!.env.*' \
+          --glob '!**/.env' \
+          --glob '!**/.env.*' \
+          --glob '!*.pem' \
+          --glob '!*.key' \
+          --glob '!*.p8' \
+          --glob '!*.p12' \
+          "$command_pattern" \
+          . 2>/dev/null \
+          | sed 's#^\./##'
+      elif [[ "$is_git_repo" -eq 1 ]]; then
+        while IFS= read -r -d '' file; do
+          is_inventory_private_file "$file" && continue
+          grep -InE "$command_pattern" "$file" 2>/dev/null || true
+        done < <(git -C "$repo_root" ls-files -co --exclude-standard -z)
+      else
+        while IFS= read -r -d '' file; do
+          is_inventory_private_file "$file" && continue
+          grep -InE "$command_pattern" "$file" 2>/dev/null || true
+        done < <(
+          find . -type f \
+            -not -path './.git/*' \
+            -not -path './node_modules/*' \
+            -not -path './dist/*' \
+            -not -path './build/*' \
+            -not -path './.claude-cli/*' \
+            -not -path './__pycache__/*' \
+            -not -path './.venv/*' \
+            -not -path './venv/*' \
+            -not -path './vendor/*' \
+            -not -path './target/*' \
+            -not -path './.next/*' \
+            -not -path './coverage/*' \
+            -not -path './out/*' \
+            -not -name '.env' \
+            -not -name '.env.*' \
+            -not -name '*.pem' \
+            -not -name '*.key' \
+            -not -name '*.p8' \
+            -not -name '*.p12' \
+            -print0
+        )
+      fi
+    ) 2>/dev/null \
+      | print_limited_inventory 200 "command-like lines" || true
+    echo '```'
+  } >>"$tmp"
 }
 
 {
@@ -214,6 +377,10 @@ if [[ "$include_diff" -eq 1 || "$staged" -eq 1 ]]; then
     append_untracked_files
     append_cmd "Git Diff" git -C "$repo_root" diff --unified=80
   fi
+fi
+
+if [[ "$include_inventory" -eq 1 ]]; then
+  append_capability_inventory
 fi
 
 for file in "${files[@]+"${files[@]}"}"; do

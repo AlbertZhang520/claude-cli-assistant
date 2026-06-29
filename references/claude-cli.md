@@ -68,6 +68,8 @@ If Claude returns a budget-limit error in synchronous JSON mode, the wrapper ret
 
 Synchronous calls with `--model` compare the requested model string against returned JSON `modelUsage`. If the requested string is absent, the wrapper warns that the model alias may not be honored. Treat the JSON `modelUsage` field as authoritative for cost/model analysis.
 
+For capability-gap or next-slice analysis, build context with `scripts/pack-context.sh --inventory`. The inventory section lists likely command, schema, documentation, runtime, driver, and test files plus command-like lines. It is intentionally lightweight and should be used to reduce false "missing capability" claims, not as a substitute for local verification. If the inventory emits `TRUNCATED`, do not use it as evidence of absence until targeted local searches cover the omitted space.
+
 ## Configuration
 
 Optional environment variables:

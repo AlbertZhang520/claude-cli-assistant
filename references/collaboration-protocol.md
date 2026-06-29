@@ -14,8 +14,11 @@ Use this protocol when Claude CLI is more than a one-off answer source. The goal
 2. Critique: Claude reviews the plan, diff, failure, or test surface using a prompt preset.
 3. Adjudicate: Primary agent accepts, rejects, or converts each finding into a targeted experiment.
 4. Verify: Primary agent runs targeted checks before treating a finding as resolved.
+5. Learn: If a collaboration failure recurs or exposes a new failure class, update the prompt, context-packing workflow, tests, or documentation so future agents inherit the fix.
 
 Use at most two critique/adjudication rounds for one concern. If evidence is still inconclusive, escalate to the user with both positions and the missing experiment.
+
+When the issue depends on external tool behavior, provider routing, platform APIs, or current best practices, prefer primary sources such as official documentation, CLI help, source repositories, or release notes over memory. Summarize what was learned and convert stable lessons into this skill only after local verification.
 
 ## When to Consult
 
@@ -47,6 +50,7 @@ Primary agents should not fix a Claude finding until they can reproduce, inspect
 - Accept a finding only when local evidence supports it.
 - Reject a finding with a concrete reason, such as an existing test, contract, or code path that contradicts it.
 - Convert unclear findings into targeted experiments.
+- Treat "capability is missing" or "feature does not exist" as a high-burden claim. Claude must cite evidence of absence, such as relevant file searches, command inventories, tests, docs, or explicit context saying the capability is not present. If that evidence is missing, Claude should label the point as an unverified assumption and list the exact checks needed before recommending implementation.
 - Do not let agent consensus replace tests or source evidence.
 - Do not paste Claude's suggested code blindly. Re-derive the fix locally and verify it.
 
