@@ -83,6 +83,9 @@ print_config() {
     echo "claude_version=$(run_claude --version)"
     echo "CLAUDE_CLI_DEFAULT_BUDGET_USD=${CLAUDE_CLI_DEFAULT_BUDGET_USD:-0.12}"
     echo "CLAUDE_CLI_OUTPUT_WORDS=${CLAUDE_CLI_OUTPUT_WORDS:-900}"
+    echo "CLAUDE_CLI_LEAN_BUDGET_USD=${CLAUDE_CLI_LEAN_BUDGET_USD:-0.08}"
+    echo "CLAUDE_CLI_LEAN_OUTPUT_WORDS=${CLAUDE_CLI_LEAN_OUTPUT_WORDS:-250}"
+    echo "CLAUDE_CLI_LEAN_EFFORT=${CLAUDE_CLI_LEAN_EFFORT:-low}"
     echo "CLAUDE_CLI_RETRY_OUTPUT_WORDS=${CLAUDE_CLI_RETRY_OUTPUT_WORDS:-450}"
     echo "CLAUDE_CLI_RETRY_INPUT_CHARS=${CLAUDE_CLI_RETRY_INPUT_CHARS:-16000}"
     echo "CLAUDE_CLI_WARN_INPUT_CHARS=${CLAUDE_CLI_WARN_INPUT_CHARS:-24000}"
@@ -297,6 +300,8 @@ Consult options:
   --budget USD            Pass --max-budget-usd. Default: 0.12.
   --output-words N        Add a hard response budget. Default: 900.
   --no-output-budget      Do not add the response budget instruction.
+  --lean                  Use low-cost consult defaults unless overridden:
+                          --bare, --effort low, --output-words 250, --budget 0.08.
   --retry-budget USD      Budget used by one concise retry after budget errors.
   --retry-input-chars N   Compact retry prompt to this size after budget errors.
                           Default: 16000. Use 0 to disable input compaction.
@@ -399,6 +404,10 @@ EOF
   local budget="${CLAUDE_CLI_DEFAULT_BUDGET_USD:-0.12}"
   local output_words="${CLAUDE_CLI_OUTPUT_WORDS:-900}"
   local output_budget=1
+  local lean=0
+  local budget_explicit=0
+  local output_budget_explicit=0
+  local effort_explicit=0
   local retry_budget="${CLAUDE_CLI_RETRY_BUDGET_USD:-}"
   local retry_output_words="${CLAUDE_CLI_RETRY_OUTPUT_WORDS:-450}"
   local retry_input_chars="${CLAUDE_CLI_RETRY_INPUT_CHARS:-16000}"
@@ -443,21 +452,29 @@ EOF
       --effort)
         [[ $# -ge 2 ]] || { echo "--effort requires a value" >&2; return 2; }
         effort="$2"
+        effort_explicit=1
         shift 2
         ;;
       --budget)
         [[ $# -ge 2 ]] || { echo "--budget requires USD amount" >&2; return 2; }
         budget="$2"
+        budget_explicit=1
         shift 2
         ;;
       --output-words)
         [[ $# -ge 2 ]] || { echo "--output-words requires a value" >&2; return 2; }
         output_words="$2"
         output_budget=1
+        output_budget_explicit=1
         shift 2
         ;;
       --no-output-budget)
         output_budget=0
+        output_budget_explicit=1
+        shift
+        ;;
+      --lean)
+        lean=1
         shift
         ;;
       --retry-budget)
@@ -578,6 +595,19 @@ EOF
 
   if [[ -z "$stdin_prompt" && ! -t 0 ]]; then
     stdin_prompt="$(cat)"
+  fi
+  if [[ "$lean" -eq 1 ]]; then
+    bare=1
+    if [[ "$effort_explicit" -eq 0 ]]; then
+      effort="${CLAUDE_CLI_LEAN_EFFORT:-low}"
+    fi
+    if [[ "$output_budget_explicit" -eq 0 ]]; then
+      output_words="${CLAUDE_CLI_LEAN_OUTPUT_WORDS:-250}"
+      output_budget=1
+    fi
+    if [[ "$budget_explicit" -eq 0 ]]; then
+      budget="${CLAUDE_CLI_LEAN_BUDGET_USD:-0.08}"
+    fi
   fi
   if [[ -z "$retry_budget" ]]; then
     retry_budget="$budget"

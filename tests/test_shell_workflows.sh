@@ -84,6 +84,9 @@ grep -q 'ANTHROPIC_BASE_URL=<configured>' "$tmp/print-config.out"
 grep -q 'ANTHROPIC_AUTH_TOKEN=<redacted>' "$tmp/print-config.out"
 grep -q 'CLAUDE_CLI_RETRY_INPUT_CHARS=16000' "$tmp/print-config.out"
 grep -q 'CLAUDE_CLI_WARN_INPUT_CHARS=24000' "$tmp/print-config.out"
+grep -q 'CLAUDE_CLI_LEAN_BUDGET_USD=0.08' "$tmp/print-config.out"
+grep -q 'CLAUDE_CLI_LEAN_OUTPUT_WORDS=250' "$tmp/print-config.out"
+grep -q 'CLAUDE_CLI_LEAN_EFFORT=low' "$tmp/print-config.out"
 if grep -q 'private.example.test\\|fake-private-token' "$tmp/print-config.out"; then
   echo "print-config leaked Anthropic environment values" >&2
   exit 1
@@ -123,6 +126,20 @@ grep -q 'Output Budget' "$CLAUDE_MOCK_PROMPT"
 grep -q 'at most 900 words' "$CLAUDE_MOCK_PROMPT"
 grep -q 'Check this task.' "$CLAUDE_MOCK_PROMPT"
 grep -q 'No cosmetic findings.' "$CLAUDE_MOCK_PROMPT"
+
+lean_out="$(printf '%s' 'Check only blockers.' | "$skill_dir/scripts/run-claude-cli.sh" consult plan-critique --lean)"
+printf '%s' "$lean_out" | jq -e '.result == "MOCK_OK"' >/dev/null
+grep -Fx '<0.08>' "$CLAUDE_MOCK_ARGS" >/dev/null
+grep -Fx '<--bare>' "$CLAUDE_MOCK_ARGS" >/dev/null
+grep -Fx '<--effort>' "$CLAUDE_MOCK_ARGS" >/dev/null
+grep -Fx '<low>' "$CLAUDE_MOCK_ARGS" >/dev/null
+grep -q 'at most 250 words' "$CLAUDE_MOCK_PROMPT"
+
+lean_override_out="$(printf '%s' 'Check only blockers.' | "$skill_dir/scripts/run-claude-cli.sh" consult plan-critique --lean --budget 0.11 --output-words 333 --effort medium)"
+printf '%s' "$lean_override_out" | jq -e '.result == "MOCK_OK"' >/dev/null
+grep -Fx '<0.11>' "$CLAUDE_MOCK_ARGS" >/dev/null
+grep -Fx '<medium>' "$CLAUDE_MOCK_ARGS" >/dev/null
+grep -q 'at most 333 words' "$CLAUDE_MOCK_PROMPT"
 
 rm -f "$CLAUDE_MOCK_BUDGET_MARKER"
 budget_retry_out="$(CLAUDE_MOCK_BUDGET_FAIL_ONCE=1 "$skill_dir/scripts/run-claude-cli.sh" consult review --context "$context" 2>"$tmp/budget-retry.err")"

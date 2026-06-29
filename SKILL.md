@@ -28,6 +28,13 @@ printf '%s' "Review this plan for missing cases. Do not modify files." \
   | ./scripts/run-claude-cli.sh consult plan-critique
 ```
 
+Run a low-cost narrow consultation:
+
+```bash
+printf '%s' "Check this small plan for blockers only. Do not modify files." \
+  | ./scripts/run-claude-cli.sh consult plan-critique --lean
+```
+
 Review the current diff with a bounded context packet:
 
 ```bash
@@ -67,6 +74,7 @@ Inspect sanitized configuration:
    - `blast-radius`: integration and production impact analysis.
    - `spec-rederive`: independent task/spec interpretation.
 4. Prefer the default read-only mode. It invokes `claude -p` with JSON output, `--tools ""`, `--permission-mode dontAsk`, `--no-session-persistence`, a cost budget, and a bounded response budget.
+   - Use `--lean` for routine narrow checks. It opts into `--bare`, low effort, a smaller output budget, and a smaller cost budget unless the caller overrides those values.
    - If the context packet is large, expect an input-size warning. Shrink the packet or raise `--budget` for deep reviews.
    - On budget-limit errors, the wrapper retries once with a concise output budget and a compacted retry prompt.
 5. Use `--async` plus bounded `wait --timeout` for longer tasks.
@@ -113,6 +121,7 @@ Opt into a tool-enabled consultation only when needed:
 - A local `.env` is only read for `CLAUDE_CLI_*` wrapper variables; do not use it for provider credentials.
 - When enabling mutating tools such as `Bash`, `Edit`, or `Write`, prefer `--permission-mode default` unless silent mutation is intentional.
 - Keep input and output bounded for deep reviews. The wrapper defaults to `--output-words 900`, warns on large prompts, and retries once with a compacted input prompt plus concise recovery mode if Claude returns a budget error.
+- Treat frequent budget retries as a routing or sizing signal, not normal success. First check `modelUsage`; if a requested low-cost model still reports an expensive routed model, fix the provider/router or explicitly choose `--lean` for narrow checks and a larger `--budget` for deliberate deep reviews.
 - For capability-gap analysis, provide `pack-context.sh --inventory` and require absence claims to cite evidence. If inventory is missing or reports `TRUNCATED`, treat "missing capability" conclusions as unverified assumptions until targeted local searches confirm them.
 - Do not assume `--model sonnet` or another alias reduced cost. Check `modelUsage`; synchronous wrapper calls warn when the requested model string is absent from `modelUsage`.
 - Treat `wait --timeout` as caller patience, not task failure. Use async status/result commands to inspect the real terminal state.

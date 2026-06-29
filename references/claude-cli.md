@@ -62,11 +62,19 @@ The wrapper also injects an output budget instruction by default:
 Return one BEGIN_RESULT / END_RESULT block in at most 900 words.
 ```
 
+For narrow blocker checks, add `--lean`:
+
+```bash
+./scripts/run-claude-cli.sh consult plan-critique --lean
+```
+
+Lean mode is opt-in. Unless the caller overrides values, it adds `--bare`, sets `--effort low`, injects a 250-word output budget, and uses a `0.08` USD cost budget. Use it for small plan critiques, quick root-cause checks, and monitor-style diagnosis. Use normal mode or an explicit larger `--budget` for deep reviews where full Claude Code context is worth the cost.
+
 The wrapper warns when the assembled prompt is large enough to risk exhausting the cost budget on input tokens before useful output is produced.
 
 If Claude returns a budget-limit error in synchronous JSON mode, the wrapper retries once in concise recovery mode with a 450-word output budget and a compacted retry prompt. This codifies the manual "rerun a shorter version" recovery pattern that works for complex review tasks.
 
-Synchronous calls with `--model` compare the requested model string against returned JSON `modelUsage`. If the requested string is absent, the wrapper warns that the model alias may not be honored. Treat the JSON `modelUsage` field as authoritative for cost/model analysis.
+Synchronous calls with `--model` compare the requested model string against returned JSON `modelUsage`. If the requested string is absent, the wrapper warns that the model alias may not be honored. Treat the JSON `modelUsage` field as authoritative for cost/model analysis. If `ANTHROPIC_BASE_URL` or another provider router maps all aliases to an expensive model, `--model sonnet` is not a cost control; fix the router mapping or size `--budget` to the effective model reported in `modelUsage`.
 
 For capability-gap or next-slice analysis, build context with `scripts/pack-context.sh --inventory`. The inventory section lists likely command, schema, documentation, runtime, driver, and test files plus command-like lines. It is intentionally lightweight and should be used to reduce false "missing capability" claims, not as a substitute for local verification. If the inventory emits `TRUNCATED`, do not use it as evidence of absence until targeted local searches cover the omitted space.
 
@@ -79,6 +87,9 @@ Optional environment variables:
 | `CLAUDE_CLI_BIN` | `claude` | Path or command name for Claude CLI. |
 | `CLAUDE_CLI_DEFAULT_BUDGET_USD` | `0.12` | Default `--max-budget-usd`. |
 | `CLAUDE_CLI_OUTPUT_WORDS` | `900` | Default response budget injected into consult prompts. |
+| `CLAUDE_CLI_LEAN_BUDGET_USD` | `0.08` | Budget used by `consult --lean` when `--budget` is not explicitly set. |
+| `CLAUDE_CLI_LEAN_OUTPUT_WORDS` | `250` | Response budget used by `consult --lean` when output budget is not explicitly set. |
+| `CLAUDE_CLI_LEAN_EFFORT` | `low` | Effort used by `consult --lean` when `--effort` is not explicitly set. |
 | `CLAUDE_CLI_RETRY_OUTPUT_WORDS` | `450` | Response budget for the one-shot budget-error retry. |
 | `CLAUDE_CLI_RETRY_INPUT_CHARS` | `16000` | Retry prompt size target after a budget-limit error. Set `0` to keep full retry input. |
 | `CLAUDE_CLI_WARN_INPUT_CHARS` | `24000` | Prompt size that triggers a pre-call budget warning. Set `0` to disable. |
